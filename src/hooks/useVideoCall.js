@@ -15,6 +15,8 @@ export const useVideoCall = (roomId) => {
   const signalingRef = useRef(null);
   const userIdRef = useRef(`user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const isInitiatorRef = useRef(false);
+  const hasReceivedOfferRef = useRef(false);
+  const pendingCandidatesRef = useRef([]);
 
   const handleRemoteStream = useCallback((stream) => {
     console.log('[useVideoCall] Remote stream received');
@@ -26,37 +28,89 @@ export const useVideoCall = (roomId) => {
     setConnectionState(state);
   }, []);
 
+  const processPendingCandidates = useCallback(async () => {
+    if (webrtcRef.current && pendingCandidatesRef.current.length > 0) {
+      console.log('[useVideoCall] Processing pending ICE candidates:', pendingCandidatesRef.current.length);
+      for (const candidate of pendingCandidatesRef.current) {
+        try {
+          await webrtcRef.current.addIceCandidate(candidate);
+        } catch (err) {
+          console.warn('[useVideoCall] Failed to add pending candidate:', err);
+        }
+      }
+      pendingCandidatesRef.current = [];
+    }
+  }, []);
+
   const handleSignal = useCallback(async (signal) => {
-    console.log('[useVideoCall] Handling signal:', signal.type);
+    console.log('[useVideoCall] Handling signal:', signal.type, 'from:', signal.senderId);
     
     try {
       switch (signal.type) {
         case 'join':
           setPeerJoined(true);
-          // If we're already in the room, send an offer
-          if (webrtcRef.current && localStream) {
-            isInitiatorRef.current = true;
-            const offer = await webrtcRef.current.createOffer();
-            await signalingRef.current?.sendOffer(offer);
+          // Only the first person to join becomes initiator and sends offer
+          // Compare user IDs to determine who initiates (higher ID initiates)
+          if (webrtcRef.current && !hasReceivedOfferRef.current) {
+            const shouldInitiate = userIdRef.current > signal.senderId;
+            console.log('[useVideoCall] Should initiate:', shouldInitiate);
+            
+            if (shouldInitiate && !isInitiatorRef.current) {
+              isInitiatorRef.current = true;
+              const offer = await webrtcRef.current.createOffer();
+              await signalingRef.current?.sendOffer(offer);
+            }
           }
           break;
           
         case 'offer':
           if (webrtcRef.current) {
-            const answer = await webrtcRef.current.createAnswer(signal.data);
-            await signalingRef.current?.sendAnswer(answer);
+            const pc = webrtcRef.current.peerConnection;
+            // Only process offer if we haven't already or if we're in stable state
+            if (pc && (pc.signalingState === 'stable' || pc.signalingState === 'have-local-offer')) {
+              // If we have a local offer and receive an offer, use polite peer logic
+              if (pc.signalingState === 'have-local-offer') {
+                // Lower ID is polite and accepts the offer
+                if (userIdRef.current < signal.senderId) {
+                  console.log('[useVideoCall] Polite peer: rolling back local offer');
+                  await pc.setLocalDescription({ type: 'rollback' });
+                } else {
+                  console.log('[useVideoCall] Impolite peer: ignoring incoming offer');
+                  break;
+                }
+              }
+              
+              hasReceivedOfferRef.current = true;
+              const answer = await webrtcRef.current.createAnswer(signal.data);
+              await signalingRef.current?.sendAnswer(answer);
+              await processPendingCandidates();
+            }
           }
           break;
           
         case 'answer':
           if (webrtcRef.current) {
-            await webrtcRef.current.setRemoteAnswer(signal.data);
+            const pc = webrtcRef.current.peerConnection;
+            // Only set answer if we're in the correct state
+            if (pc && pc.signalingState === 'have-local-offer') {
+              await webrtcRef.current.setRemoteAnswer(signal.data);
+              await processPendingCandidates();
+            } else {
+              console.log('[useVideoCall] Ignoring answer, wrong state:', pc?.signalingState);
+            }
           }
           break;
           
         case 'ice-candidate':
           if (webrtcRef.current) {
-            await webrtcRef.current.addIceCandidate(signal.data);
+            const pc = webrtcRef.current.peerConnection;
+            // Queue candidates if remote description not set yet
+            if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+              await webrtcRef.current.addIceCandidate(signal.data);
+            } else {
+              console.log('[useVideoCall] Queuing ICE candidate');
+              pendingCandidatesRef.current.push(signal.data);
+            }
           }
           break;
           
@@ -64,13 +118,16 @@ export const useVideoCall = (roomId) => {
           setPeerJoined(false);
           setRemoteStream(null);
           setConnectionState('disconnected');
+          hasReceivedOfferRef.current = false;
+          isInitiatorRef.current = false;
+          pendingCandidatesRef.current = [];
           break;
       }
     } catch (err) {
       console.error('[useVideoCall] Signal handling error:', err);
       setError(err.message);
     }
-  }, [localStream]);
+  }, [processPendingCandidates]);
 
   const startCall = useCallback(async () => {
     if (!roomId) {
@@ -81,6 +138,9 @@ export const useVideoCall = (roomId) => {
     try {
       setError(null);
       setConnectionState('connecting');
+      hasReceivedOfferRef.current = false;
+      isInitiatorRef.current = false;
+      pendingCandidatesRef.current = [];
 
       // Initialize WebRTC
       webrtcRef.current = new WebRTCConnection(
@@ -92,6 +152,8 @@ export const useVideoCall = (roomId) => {
       // Get local stream
       const stream = await webrtcRef.current.getLocalStream(true, true);
       setLocalStream(stream);
+      setIsAudioEnabled(true);
+      setIsVideoEnabled(true);
 
       // Set up ICE candidate handling
       webrtcRef.current.onIceCandidate((candidate) => {
@@ -106,10 +168,10 @@ export const useVideoCall = (roomId) => {
       );
       signalingRef.current.connect();
 
-      // Announce joining
+      // Announce joining after channel is ready
       setTimeout(() => {
         signalingRef.current?.sendJoin();
-      }, 500);
+      }, 1000);
 
       console.log('[useVideoCall] Call started, room:', roomId);
     } catch (err) {
@@ -133,19 +195,32 @@ export const useVideoCall = (roomId) => {
     setRemoteStream(null);
     setConnectionState('closed');
     setPeerJoined(false);
+    hasReceivedOfferRef.current = false;
+    isInitiatorRef.current = false;
+    pendingCandidatesRef.current = [];
   }, []);
 
   const toggleAudio = useCallback(() => {
-    const newState = !isAudioEnabled;
-    webrtcRef.current?.toggleAudio(newState);
-    setIsAudioEnabled(newState);
-  }, [isAudioEnabled]);
+    if (localStream) {
+      const audioTracks = localStream.getAudioTracks();
+      audioTracks.forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsAudioEnabled(prev => !prev);
+      console.log('[useVideoCall] Audio toggled:', !isAudioEnabled);
+    }
+  }, [localStream, isAudioEnabled]);
 
   const toggleVideo = useCallback(() => {
-    const newState = !isVideoEnabled;
-    webrtcRef.current?.toggleVideo(newState);
-    setIsVideoEnabled(newState);
-  }, [isVideoEnabled]);
+    if (localStream) {
+      const videoTracks = localStream.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = !track.enabled;
+      });
+      setIsVideoEnabled(prev => !prev);
+      console.log('[useVideoCall] Video toggled:', !isVideoEnabled);
+    }
+  }, [localStream, isVideoEnabled]);
 
   // Cleanup on unmount
   useEffect(() => {
