@@ -1,63 +1,17 @@
-import { useState } from "react";
+import { Link } from "react-router-dom";
 import Header from "@/components/Header.jsx";
 import Footer from "@/components/Footer.jsx";
-import { Video, User, Stethoscope } from "lucide-react";
-import PatientVideoConsultations from "@/components/video/PatientVideoConsultations.jsx";
-import DoctorVideoConsultations from "@/components/video/DoctorVideoConsultations.jsx";
-import VideoCallUI from "@/components/video/VideoCallUI.jsx";
-import { useAppointments } from "@/context/AppointmentContext.jsx";
+import { Video, User, Stethoscope, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button.jsx";
 
 const VideoConsultation = () => {
-  const { getVideoConsultations, updateAppointmentStatus } = useAppointments();
-  const [activeTab, setActiveTab] = useState("patient");
-  const [inCall, setInCall] = useState(false);
-  const [activeConsultation, setActiveConsultation] = useState(null);
-  const [isWaitingRoom, setIsWaitingRoom] = useState(false);
-
-  const videoConsultations = getVideoConsultations();
-
-  const handleJoinCall = (consultation, isEarly = false) => {
-    setActiveConsultation(consultation);
-    setIsWaitingRoom(isEarly);
-    setInCall(true);
-  };
-
-  const handleStartCall = (consultation) => {
-    setActiveConsultation(consultation);
-    setIsWaitingRoom(false);
-    setInCall(true);
-  };
-
-  const handleEndCall = () => {
-    setInCall(false);
-    setActiveConsultation(null);
-    setIsWaitingRoom(false);
-  };
-
-  const handleMarkComplete = (appointmentId) => {
-    updateAppointmentStatus(appointmentId, "Completed");
-  };
-
-  // Show video call UI when in call
-  if (inCall && activeConsultation) {
-    return (
-      <VideoCallUI
-        consultation={activeConsultation}
-        userType={activeTab}
-        onEndCall={handleEndCall}
-        onMarkComplete={handleMarkComplete}
-        isWaitingRoom={isWaitingRoom}
-      />
-    );
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <main className="pt-24 pb-16">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           {/* Page Header */}
-          <div className="text-center max-w-3xl mx-auto mb-8">
+          <div className="text-center max-w-3xl mx-auto mb-12">
             <div className="inline-flex items-center gap-2 bg-purple-100 px-4 py-2 rounded-full mb-6">
               <Video className="w-4 h-4 text-purple-600" />
               <span className="text-sm font-medium text-purple-600">Telehealth</span>
@@ -70,49 +24,47 @@ const VideoConsultation = () => {
             </p>
           </div>
 
-          {/* View Tabs */}
-          <div className="max-w-3xl mx-auto mb-8">
-            <div className="flex bg-muted rounded-xl p-1">
-              <button
-                onClick={() => setActiveTab("patient")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-300 ${
-                  activeTab === "patient"
-                    ? "bg-card text-foreground shadow-soft"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <User className="w-4 h-4" />
-                Patient View
-              </button>
-              <button
-                onClick={() => setActiveTab("doctor")}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all duration-300 ${
-                  activeTab === "doctor"
-                    ? "bg-card text-foreground shadow-soft"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Stethoscope className="w-4 h-4" />
-                Doctor View
-              </button>
-            </div>
+          {/* Portal Selection */}
+          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8">
+            {/* Patient Portal Card */}
+            <Link 
+              to="/video-consultation/patient"
+              className="group bg-card rounded-3xl shadow-soft border border-border/50 p-8 hover:shadow-elevated transition-all duration-300 hover:border-primary/30"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-purple-100 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <User className="w-8 h-8 text-purple-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-3">Patient Portal</h2>
+              <p className="text-muted-foreground mb-6">
+                View your upcoming video consultations, join waiting rooms, and connect with your healthcare providers.
+              </p>
+              <div className="flex items-center gap-2 text-primary font-medium group-hover:gap-3 transition-all duration-300">
+                <span>Enter Patient Portal</span>
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </Link>
+
+            {/* Doctor Portal Card */}
+            <Link 
+              to="/video-consultation/doctor"
+              className="group bg-card rounded-3xl shadow-soft border border-border/50 p-8 hover:shadow-elevated transition-all duration-300 hover:border-blue-300"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-blue-100 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                <Stethoscope className="w-8 h-8 text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-3">Doctor Portal</h2>
+              <p className="text-muted-foreground mb-6">
+                Manage your patient consultations, start video calls, and complete appointments with prescription notes.
+              </p>
+              <div className="flex items-center gap-2 text-blue-600 font-medium group-hover:gap-3 transition-all duration-300">
+                <span>Enter Doctor Portal</span>
+                <ArrowRight className="w-4 h-4" />
+              </div>
+            </Link>
           </div>
 
-          {/* Tab Content */}
-          {activeTab === "patient" ? (
-            <PatientVideoConsultations
-              consultations={videoConsultations}
-              onJoinCall={handleJoinCall}
-            />
-          ) : (
-            <DoctorVideoConsultations
-              consultations={videoConsultations}
-              onStartCall={handleStartCall}
-            />
-          )}
-
           {/* Info Section */}
-          <div className="max-w-3xl mx-auto mt-12">
+          <div className="max-w-3xl mx-auto mt-16">
             <div className="bg-gradient-to-br from-primary/5 to-primary/10 rounded-2xl p-6 sm:p-8">
               <h3 className="text-lg font-bold text-foreground mb-4">
                 How Video Consultations Work

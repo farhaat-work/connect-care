@@ -1,5 +1,12 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { generateAppointmentNumber } from "@/data/appointmentData.js";
+import { 
+  getAppointments as getStoredAppointments, 
+  saveAppointments,
+  getSessions,
+  saveSession,
+  updateSessionStatus as updateStoredSessionStatus
+} from "@/utils/localStorage.js";
 
 const AppointmentContext = createContext(null);
 
@@ -12,7 +19,13 @@ export const useAppointments = () => {
 };
 
 export const AppointmentProvider = ({ children }) => {
-  const [appointments, setAppointments] = useState([]);
+  const [appointments, setAppointments] = useState(() => getStoredAppointments());
+  const [sessions, setSessions] = useState(() => getSessions());
+
+  // Persist appointments to localStorage whenever they change
+  useEffect(() => {
+    saveAppointments(appointments);
+  }, [appointments]);
 
   const addAppointment = useCallback((appointmentData) => {
     const newAppointment = {
@@ -48,14 +61,76 @@ export const AppointmentProvider = ({ children }) => {
     );
   }, [getUpcomingAppointments]);
 
+  // Session management for video calls
+  const createSession = useCallback((appointmentId, userType) => {
+    const appointment = appointments.find((apt) => apt.id === appointmentId);
+    if (!appointment) return null;
+
+    const newSession = {
+      id: `session-${Date.now()}`,
+      appointmentId,
+      roomId: `consultation-${appointmentId}`,
+      patientName: appointment.patientName,
+      doctorName: appointment.doctorName,
+      specialization: appointment.specialization,
+      appointmentDate: appointment.appointmentDate,
+      appointmentTime: appointment.appointmentTime,
+      status: "waiting",
+      createdAt: new Date().toISOString(),
+      participants: {
+        patient: userType === "patient",
+        doctor: userType === "doctor",
+      },
+    };
+
+    saveSession(newSession);
+    setSessions((prev) => [...prev, newSession]);
+    return newSession;
+  }, [appointments]);
+
+  const joinSession = useCallback((sessionId, userType) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id === sessionId) {
+          const updated = {
+            ...s,
+            participants: { ...s.participants, [userType]: true },
+            status: s.participants.patient && s.participants.doctor ? "active" : "waiting",
+          };
+          saveSession(updated);
+          return updated;
+        }
+        return s;
+      })
+    );
+  }, []);
+
+  const endSession = useCallback((sessionId) => {
+    updateStoredSessionStatus(sessionId, "ended");
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, status: "ended" } : s))
+    );
+  }, []);
+
+  const getSessionByAppointment = useCallback((appointmentId) => {
+    return sessions.find(
+      (s) => s.appointmentId === appointmentId && s.status !== "ended"
+    );
+  }, [sessions]);
+
   return (
     <AppointmentContext.Provider
       value={{
         appointments,
+        sessions,
         addAppointment,
         updateAppointmentStatus,
         getUpcomingAppointments,
         getVideoConsultations,
+        createSession,
+        joinSession,
+        endSession,
+        getSessionByAppointment,
       }}
     >
       {children}
