@@ -72,42 +72,56 @@ export const useVideoCall = (roomId) => {
     console.log('[useVideoCall] Signal received:', signal.type, 'from:', signal.senderId);
     
     if (!webrtcRef.current) {
-      console.warn('[useVideoCall] WebRTC not initialized');
+      console.warn('[useVideoCall] WebRTC not initialized, ignoring signal');
       return;
     }
 
     try {
       switch (signal.type) {
         case 'join':
+          // Prevent duplicate join handling
+          if (peerIdRef.current === signal.senderId) {
+            console.log('[useVideoCall] Ignoring duplicate join from:', signal.senderId);
+            return;
+          }
+          
           console.log('[useVideoCall] Peer joined:', signal.senderId);
           setPeerJoined(true);
           peerIdRef.current = signal.senderId;
           
-          // Determine who should create offer (higher ID creates offer)
+          // Determine who should create offer (higher ID creates offer to avoid glare)
           const shouldOffer = userIdRef.current > signal.senderId;
           console.log('[useVideoCall] Should create offer:', shouldOffer, 'myId:', userIdRef.current, 'peerId:', signal.senderId);
           
           if (shouldOffer) {
             isInitiatorRef.current = true;
-            // Small delay to ensure both peers are ready
-            setTimeout(() => createAndSendOffer(), 500);
+            // Small delay to ensure peer is ready to receive
+            setTimeout(() => {
+              console.log('[useVideoCall] Initiating offer after delay');
+              createAndSendOffer();
+            }, 300);
           }
           break;
 
         case 'offer':
-          console.log('[useVideoCall] Received offer');
+          console.log('[useVideoCall] Received offer from:', signal.senderId);
           isInitiatorRef.current = false;
+          peerIdRef.current = signal.senderId;
+          setPeerJoined(true);
           
           const answer = await webrtcRef.current.handleOffer(signal.data);
           if (answer) {
+            console.log('[useVideoCall] Sending answer');
             await signalingRef.current?.sendAnswer(answer);
             // Process any queued candidates now that we have remote description
             await processQueuedCandidates();
+          } else {
+            console.warn('[useVideoCall] Failed to create answer');
           }
           break;
 
         case 'answer':
-          console.log('[useVideoCall] Received answer');
+          console.log('[useVideoCall] Received answer from:', signal.senderId);
           await webrtcRef.current.handleAnswer(signal.data);
           // Process any queued candidates now that we have remote description
           await processQueuedCandidates();
@@ -123,18 +137,21 @@ export const useVideoCall = (roomId) => {
           } else {
             const added = await webrtcRef.current.addIceCandidate(signal.data);
             if (!added) {
+              console.log('[useVideoCall] Re-queuing ICE candidate');
               pendingCandidatesRef.current.push(signal.data);
             }
           }
           break;
 
         case 'leave':
-          console.log('[useVideoCall] Peer left');
-          setPeerJoined(false);
-          peerIdRef.current = null;
-          setRemoteStream(null);
-          setConnectionState('disconnected');
-          pendingCandidatesRef.current = [];
+          console.log('[useVideoCall] Peer left:', signal.senderId);
+          if (peerIdRef.current === signal.senderId) {
+            setPeerJoined(false);
+            peerIdRef.current = null;
+            setRemoteStream(null);
+            setConnectionState('disconnected');
+            pendingCandidatesRef.current = [];
+          }
           break;
       }
     } catch (err) {

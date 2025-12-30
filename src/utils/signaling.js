@@ -8,16 +8,18 @@ export class SignalingService {
     this.channel = null;
     this.isConnected = false;
     this.pendingMessages = [];
+    this.presenceInterval = null;
   }
 
   connect() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const channelName = `video-call:${this.roomId}`;
-      console.log('[Signaling] Connecting to channel:', channelName);
+      console.log('[Signaling] Connecting to channel:', channelName, 'as:', this.userId);
       
       this.channel = supabase.channel(channelName, {
         config: {
-          broadcast: { self: false }
+          broadcast: { self: false },
+          presence: { key: this.userId }
         }
       });
 
@@ -28,14 +30,34 @@ export class SignalingService {
             this.onSignal?.(payload);
           }
         })
-        .subscribe((status) => {
+        .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+          console.log('[Signaling] Presence join:', key);
+          if (key !== this.userId) {
+            // Another user joined - notify via signal
+            this.onSignal?.({ type: 'join', senderId: key });
+          }
+        })
+        .on('presence', { event: 'leave' }, ({ key }) => {
+          console.log('[Signaling] Presence leave:', key);
+          if (key !== this.userId) {
+            this.onSignal?.({ type: 'leave', senderId: key });
+          }
+        })
+        .subscribe(async (status) => {
           console.log('[Signaling] Channel status:', status);
           if (status === 'SUBSCRIBED') {
             this.isConnected = true;
+            
+            // Track presence
+            await this.channel.track({ online_at: new Date().toISOString() });
+            
             // Send any pending messages
             this.pendingMessages.forEach(msg => this._send(msg));
             this.pendingMessages = [];
+            
             resolve(this.channel);
+          } else if (status === 'CHANNEL_ERROR') {
+            reject(new Error('Failed to connect to signaling channel'));
           }
         });
     });
@@ -101,7 +123,7 @@ export class SignalingService {
   }
 
   async sendJoin() {
-    console.log('[Signaling] Sending join');
+    console.log('[Signaling] Sending join broadcast');
     await this._send({
       type: 'broadcast',
       event: 'signal',
@@ -125,8 +147,14 @@ export class SignalingService {
   }
 
   disconnect() {
+    if (this.presenceInterval) {
+      clearInterval(this.presenceInterval);
+      this.presenceInterval = null;
+    }
+    
     if (this.channel) {
       this.isConnected = false;
+      this.channel.untrack();
       supabase.removeChannel(this.channel);
       this.channel = null;
       console.log('[Signaling] Disconnected');
