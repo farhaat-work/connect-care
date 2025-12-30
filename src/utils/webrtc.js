@@ -17,6 +17,8 @@ export class WebRTCConnection {
     this.onRemoteStream = onRemoteStream;
     this.onConnectionStateChange = onConnectionStateChange;
     this.onIceCallback = null;
+    this.onNegotiationNeeded = null;
+    this.isNegotiating = false;
   }
 
   async initialize() {
@@ -35,32 +37,43 @@ export class WebRTCConnection {
 
     // Connection state changes
     this.peerConnection.onconnectionstatechange = () => {
-      const state = this.peerConnection.connectionState;
+      const state = this.peerConnection?.connectionState;
       console.log('[WebRTC] Connection state:', state);
       this.onConnectionStateChange?.(state);
     };
 
     // ICE connection state for debugging
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('[WebRTC] ICE connection state:', this.peerConnection.iceConnectionState);
+      console.log('[WebRTC] ICE connection state:', this.peerConnection?.iceConnectionState);
     };
 
     // ICE gathering state
     this.peerConnection.onicegatheringstatechange = () => {
-      console.log('[WebRTC] ICE gathering state:', this.peerConnection.iceGatheringState);
+      console.log('[WebRTC] ICE gathering state:', this.peerConnection?.iceGatheringState);
     };
 
-    // ICE candidate handling
+    // ICE candidate handling - send immediately
     this.peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log('[WebRTC] Local ICE candidate:', event.candidate.type);
+        console.log('[WebRTC] Local ICE candidate:', event.candidate.type || 'end-of-candidates');
         this.onIceCallback?.(event.candidate);
       }
     };
 
-    // Negotiation needed (for renegotiation scenarios)
-    this.peerConnection.onnegotiationneeded = () => {
-      console.log('[WebRTC] Negotiation needed');
+    // Negotiation needed - delegate to caller
+    this.peerConnection.onnegotiationneeded = async () => {
+      console.log('[WebRTC] Negotiation needed, isNegotiating:', this.isNegotiating);
+      if (!this.isNegotiating) {
+        this.onNegotiationNeeded?.();
+      }
+    };
+
+    // Signaling state change for debugging
+    this.peerConnection.onsignalingstatechange = () => {
+      console.log('[WebRTC] Signaling state:', this.peerConnection?.signalingState);
+      if (this.peerConnection?.signalingState === 'stable') {
+        this.isNegotiating = false;
+      }
     };
 
     return this.peerConnection;
@@ -99,61 +112,105 @@ export class WebRTCConnection {
   }
 
   async createOffer() {
-    console.log('[WebRTC] Creating offer');
-    const offer = await this.peerConnection.createOffer({
-      offerToReceiveAudio: true,
-      offerToReceiveVideo: true
-    });
-    await this.peerConnection.setLocalDescription(offer);
-    console.log('[WebRTC] Local description set (offer)');
-    return offer;
+    if (!this.peerConnection) return null;
+    
+    console.log('[WebRTC] Creating offer, signaling state:', this.peerConnection.signalingState);
+    this.isNegotiating = true;
+    
+    try {
+      const offer = await this.peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+      });
+      await this.peerConnection.setLocalDescription(offer);
+      console.log('[WebRTC] Local description set (offer)');
+      return this.peerConnection.localDescription;
+    } catch (err) {
+      console.error('[WebRTC] Error creating offer:', err);
+      this.isNegotiating = false;
+      throw err;
+    }
   }
 
-  async createAnswer(offer) {
-    const signalingState = this.peerConnection.signalingState;
-    console.log('[WebRTC] Creating answer, current state:', signalingState);
+  async handleOffer(offer) {
+    if (!this.peerConnection) return null;
     
+    const signalingState = this.peerConnection.signalingState;
+    console.log('[WebRTC] Handling offer, current state:', signalingState);
+    
+    // Can only handle offer in stable state
     if (signalingState !== "stable") {
-      console.warn('[WebRTC] Cannot create answer in state:', signalingState);
+      console.warn('[WebRTC] Cannot handle offer in state:', signalingState);
       return null;
     }
 
-    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    console.log('[WebRTC] Remote description set (offer)');
+    this.isNegotiating = true;
     
-    const answer = await this.peerConnection.createAnswer();
-    await this.peerConnection.setLocalDescription(answer);
-    console.log('[WebRTC] Local description set (answer)');
-    
-    return answer;
+    try {
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log('[WebRTC] Remote description set (offer)');
+      
+      const answer = await this.peerConnection.createAnswer();
+      await this.peerConnection.setLocalDescription(answer);
+      console.log('[WebRTC] Local description set (answer)');
+      
+      return this.peerConnection.localDescription;
+    } catch (err) {
+      console.error('[WebRTC] Error handling offer:', err);
+      this.isNegotiating = false;
+      throw err;
+    }
   }
 
-  async setRemoteAnswer(answer) {
+  async handleAnswer(answer) {
+    if (!this.peerConnection) return;
+    
     const signalingState = this.peerConnection.signalingState;
-    console.log('[WebRTC] Setting remote answer, current state:', signalingState);
+    console.log('[WebRTC] Handling answer, current state:', signalingState);
     
     if (signalingState !== "have-local-offer") {
-      console.warn('[WebRTC] Cannot set answer in state:', signalingState);
+      console.warn('[WebRTC] Cannot handle answer in state:', signalingState);
       return;
     }
     
-    await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    console.log('[WebRTC] Remote description set (answer)');
+    try {
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+      console.log('[WebRTC] Remote description set (answer)');
+    } catch (err) {
+      console.error('[WebRTC] Error handling answer:', err);
+      throw err;
+    }
   }
 
   async addIceCandidate(candidate) {
+    if (!this.peerConnection) return;
+    
     try {
-      if (this.peerConnection.remoteDescription) {
+      // Only add if we have remote description
+      if (this.peerConnection.remoteDescription && this.peerConnection.remoteDescription.type) {
         await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        console.log('[WebRTC] ICE candidate added');
+        console.log('[WebRTC] ICE candidate added successfully');
+      } else {
+        console.warn('[WebRTC] Cannot add ICE candidate - no remote description');
+        return false;
       }
+      return true;
     } catch (err) {
       console.warn('[WebRTC] Error adding ICE candidate:', err.message);
+      return false;
     }
+  }
+
+  hasRemoteDescription() {
+    return !!(this.peerConnection?.remoteDescription?.type);
   }
 
   onIceCandidate(callback) {
     this.onIceCallback = callback;
+  }
+
+  setNegotiationHandler(callback) {
+    this.onNegotiationNeeded = callback;
   }
 
   // Toggle audio track
@@ -163,7 +220,9 @@ export class WebRTCConnection {
         track.enabled = enabled;
         console.log('[WebRTC] Audio track enabled:', enabled);
       });
+      return true;
     }
+    return false;
   }
 
   // Toggle video track
@@ -173,7 +232,9 @@ export class WebRTCConnection {
         track.enabled = enabled;
         console.log('[WebRTC] Video track enabled:', enabled);
       });
+      return true;
     }
+    return false;
   }
 
   close() {

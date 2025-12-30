@@ -15,10 +15,9 @@ export const useVideoCall = (roomId) => {
   const webrtcRef = useRef(null);
   const signalingRef = useRef(null);
   const userIdRef = useRef(`user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
-  const makingOfferRef = useRef(false);
-  const isSettingRemoteRef = useRef(false);
   const pendingCandidatesRef = useRef([]);
-  const hasRemoteDescRef = useRef(false);
+  const peerIdRef = useRef(null);
+  const isInitiatorRef = useRef(false);
 
   // Handle remote stream
   const handleRemoteStream = useCallback((stream) => {
@@ -42,10 +41,29 @@ export const useVideoCall = (roomId) => {
     
     for (const candidate of candidates) {
       try {
-        await webrtcRef.current.addIceCandidate(candidate);
+        const added = await webrtcRef.current.addIceCandidate(candidate);
+        if (!added) {
+          // Re-queue if couldn't add
+          pendingCandidatesRef.current.push(candidate);
+        }
       } catch (err) {
         console.warn('[useVideoCall] Failed to add queued candidate:', err.message);
       }
+    }
+  }, []);
+
+  // Create and send offer
+  const createAndSendOffer = useCallback(async () => {
+    if (!webrtcRef.current || !signalingRef.current) return;
+    
+    try {
+      console.log('[useVideoCall] Creating and sending offer');
+      const offer = await webrtcRef.current.createOffer();
+      if (offer) {
+        await signalingRef.current.sendOffer(offer);
+      }
+    } catch (err) {
+      console.error('[useVideoCall] Error creating offer:', err);
     }
   }, []);
 
@@ -58,88 +76,64 @@ export const useVideoCall = (roomId) => {
       return;
     }
 
-    const pc = webrtcRef.current.peerConnection;
-    if (!pc) return;
-
     try {
       switch (signal.type) {
         case 'join':
-          console.log('[useVideoCall] Peer joined the room');
+          console.log('[useVideoCall] Peer joined:', signal.senderId);
           setPeerJoined(true);
+          peerIdRef.current = signal.senderId;
           
           // Determine who should create offer (higher ID creates offer)
           const shouldOffer = userIdRef.current > signal.senderId;
-          console.log('[useVideoCall] Should create offer:', shouldOffer);
+          console.log('[useVideoCall] Should create offer:', shouldOffer, 'myId:', userIdRef.current, 'peerId:', signal.senderId);
           
-          if (shouldOffer && !makingOfferRef.current) {
-            makingOfferRef.current = true;
-            try {
-              const offer = await webrtcRef.current.createOffer();
-              await signalingRef.current?.sendOffer(offer);
-            } finally {
-              makingOfferRef.current = false;
-            }
+          if (shouldOffer) {
+            isInitiatorRef.current = true;
+            // Small delay to ensure both peers are ready
+            setTimeout(() => createAndSendOffer(), 500);
           }
           break;
 
         case 'offer':
-          console.log('[useVideoCall] Received offer, state:', pc.signalingState);
+          console.log('[useVideoCall] Received offer');
+          isInitiatorRef.current = false;
           
-          // Handle glare - both sides tried to create offer
-          const isPolite = userIdRef.current < signal.senderId;
-          const offerCollision = makingOfferRef.current || pc.signalingState !== 'stable';
-          
-          if (offerCollision) {
-            if (isPolite) {
-              console.log('[useVideoCall] Polite peer rolling back');
-              await pc.setLocalDescription({ type: 'rollback' });
-            } else {
-              console.log('[useVideoCall] Impolite peer ignoring offer');
-              break;
-            }
-          }
-          
-          isSettingRemoteRef.current = true;
-          const answer = await webrtcRef.current.createAnswer(signal.data);
-          isSettingRemoteRef.current = false;
-          hasRemoteDescRef.current = true;
-          
+          const answer = await webrtcRef.current.handleOffer(signal.data);
           if (answer) {
             await signalingRef.current?.sendAnswer(answer);
+            // Process any queued candidates now that we have remote description
             await processQueuedCandidates();
           }
           break;
 
         case 'answer':
-          console.log('[useVideoCall] Received answer, state:', pc.signalingState);
-          
-          if (pc.signalingState === 'have-local-offer') {
-            isSettingRemoteRef.current = true;
-            await webrtcRef.current.setRemoteAnswer(signal.data);
-            isSettingRemoteRef.current = false;
-            hasRemoteDescRef.current = true;
-            await processQueuedCandidates();
-          }
+          console.log('[useVideoCall] Received answer');
+          await webrtcRef.current.handleAnswer(signal.data);
+          // Process any queued candidates now that we have remote description
+          await processQueuedCandidates();
           break;
 
         case 'ice-candidate':
           console.log('[useVideoCall] Received ICE candidate');
           
-          // Queue candidates if we don't have remote description yet
-          if (!hasRemoteDescRef.current || isSettingRemoteRef.current) {
-            console.log('[useVideoCall] Queuing ICE candidate');
+          // Queue if we don't have remote description yet
+          if (!webrtcRef.current.hasRemoteDescription()) {
+            console.log('[useVideoCall] Queuing ICE candidate - no remote description yet');
             pendingCandidatesRef.current.push(signal.data);
           } else {
-            await webrtcRef.current.addIceCandidate(signal.data);
+            const added = await webrtcRef.current.addIceCandidate(signal.data);
+            if (!added) {
+              pendingCandidatesRef.current.push(signal.data);
+            }
           }
           break;
 
         case 'leave':
           console.log('[useVideoCall] Peer left');
           setPeerJoined(false);
+          peerIdRef.current = null;
           setRemoteStream(null);
           setConnectionState('disconnected');
-          hasRemoteDescRef.current = false;
           pendingCandidatesRef.current = [];
           break;
       }
@@ -147,7 +141,7 @@ export const useVideoCall = (roomId) => {
       console.error('[useVideoCall] Signal handling error:', err);
       setError(err.message);
     }
-  }, [processQueuedCandidates]);
+  }, [processQueuedCandidates, createAndSendOffer]);
 
   // Start the call
   const startCall = useCallback(async () => {
@@ -162,43 +156,52 @@ export const useVideoCall = (roomId) => {
     }
 
     try {
-      console.log('[useVideoCall] Starting call for room:', roomId);
+      console.log('[useVideoCall] Starting call for room:', roomId, 'userId:', userIdRef.current);
       setError(null);
       setConnectionState('connecting');
       setIsCallActive(true);
-      hasRemoteDescRef.current = false;
-      makingOfferRef.current = false;
       pendingCandidatesRef.current = [];
+      isInitiatorRef.current = false;
 
-      // Initialize WebRTC connection
+      // Step 1: Initialize WebRTC connection
       webrtcRef.current = new WebRTCConnection(
         handleRemoteStream,
         handleConnectionStateChange
       );
       await webrtcRef.current.initialize();
 
-      // Get local media stream
-      const stream = await webrtcRef.current.getLocalStream(true, true);
-      setLocalStream(stream);
-      setIsAudioEnabled(true);
-      setIsVideoEnabled(true);
-
-      // Set up ICE candidate handler
+      // Step 2: Set up ICE candidate handler BEFORE getting media
       webrtcRef.current.onIceCandidate((candidate) => {
         console.log('[useVideoCall] Sending ICE candidate');
         signalingRef.current?.sendIceCandidate(candidate);
       });
 
-      // Initialize signaling and wait for connection
+      // Step 3: Set up negotiation handler (for renegotiation scenarios)
+      webrtcRef.current.setNegotiationHandler(() => {
+        if (isInitiatorRef.current && peerIdRef.current) {
+          console.log('[useVideoCall] Renegotiation needed');
+          createAndSendOffer();
+        }
+      });
+
+      // Step 4: Initialize signaling BEFORE getting media
       signalingRef.current = new SignalingService(
         roomId,
         userIdRef.current,
         handleSignal
       );
-      
-      // Wait for channel to be subscribed before announcing presence
       await signalingRef.current.connect();
-      console.log('[useVideoCall] Channel subscribed, announcing presence');
+      console.log('[useVideoCall] Signaling connected');
+
+      // Step 5: Get local media stream (this will trigger onnegotiationneeded)
+      const stream = await webrtcRef.current.getLocalStream(true, true);
+      setLocalStream(stream);
+      setIsAudioEnabled(true);
+      setIsVideoEnabled(true);
+      console.log('[useVideoCall] Local stream ready');
+
+      // Step 6: Announce presence AFTER everything is set up
+      console.log('[useVideoCall] Announcing presence');
       await signalingRef.current.sendJoin();
 
     } catch (err) {
@@ -207,7 +210,7 @@ export const useVideoCall = (roomId) => {
       setConnectionState('failed');
       setIsCallActive(false);
     }
-  }, [roomId, handleRemoteStream, handleConnectionStateChange, handleSignal, isCallActive]);
+  }, [roomId, handleRemoteStream, handleConnectionStateChange, handleSignal, isCallActive, createAndSendOffer]);
 
   // End the call
   const endCall = useCallback(() => {
@@ -225,34 +228,38 @@ export const useVideoCall = (roomId) => {
     setConnectionState('closed');
     setPeerJoined(false);
     setIsCallActive(false);
-    hasRemoteDescRef.current = false;
-    makingOfferRef.current = false;
     pendingCandidatesRef.current = [];
+    peerIdRef.current = null;
+    isInitiatorRef.current = false;
   }, []);
 
-  // Toggle microphone
+  // Toggle microphone - directly manipulate tracks
   const toggleAudio = useCallback(() => {
     if (localStream) {
       const newState = !isAudioEnabled;
+      // Update local stream directly for immediate UI feedback
       localStream.getAudioTracks().forEach(track => {
         track.enabled = newState;
       });
+      // Also update through WebRTC class
       webrtcRef.current?.toggleAudio(newState);
       setIsAudioEnabled(newState);
-      console.log('[useVideoCall] Audio:', newState ? 'enabled' : 'disabled');
+      console.log('[useVideoCall] Audio toggled:', newState ? 'enabled' : 'disabled');
     }
   }, [localStream, isAudioEnabled]);
 
-  // Toggle camera
+  // Toggle camera - directly manipulate tracks
   const toggleVideo = useCallback(() => {
     if (localStream) {
       const newState = !isVideoEnabled;
+      // Update local stream directly for immediate UI feedback
       localStream.getVideoTracks().forEach(track => {
         track.enabled = newState;
       });
+      // Also update through WebRTC class
       webrtcRef.current?.toggleVideo(newState);
       setIsVideoEnabled(newState);
-      console.log('[useVideoCall] Video:', newState ? 'enabled' : 'disabled');
+      console.log('[useVideoCall] Video toggled:', newState ? 'enabled' : 'disabled');
     }
   }, [localStream, isVideoEnabled]);
 
