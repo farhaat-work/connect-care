@@ -189,19 +189,17 @@ export const useVideoCall = (roomId) => {
         signalingRef.current?.sendIceCandidate(candidate);
       });
 
-      // Initialize signaling
+      // Initialize signaling and wait for connection
       signalingRef.current = new SignalingService(
         roomId,
         userIdRef.current,
         handleSignal
       );
-      signalingRef.current.connect();
-
-      // Announce presence after channel is ready
-      setTimeout(() => {
-        console.log('[useVideoCall] Announcing presence');
-        signalingRef.current?.sendJoin();
-      }, 500);
+      
+      // Wait for channel to be subscribed before announcing presence
+      await signalingRef.current.connect();
+      console.log('[useVideoCall] Channel subscribed, announcing presence');
+      await signalingRef.current.sendJoin();
 
     } catch (err) {
       console.error('[useVideoCall] Start call error:', err);
