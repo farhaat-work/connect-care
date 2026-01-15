@@ -1,0 +1,84 @@
+
+/* globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens: semantic, easy to theme */
+:root {
+  /* Brand system */
+  --primary: 242 83% 60%;          /* Indigo-600 */
+  --primary-foreground: 210 40% 98%; /* White-ish on primary */
+
+  --secondary: 200 98% 39%;        /* Azure */
+  --secondary-foreground: 210 40% 98%;
+
+  /* UI surface */
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;       /* Slate-900 */
+
+  /* Muted / subtle */
+  --muted: 210 40% 96%;            /* Slate-100-ish */
+  --muted-foreground: 215 19% 35%; /* Slate-600-ish */
+
+  /* Accent / info / success / warning / destructive */
+  --accent: 260 70% 60%;
+  --accent-foreground: 210 40% 98%;
+
+  --info: 217 91% 60%;
+  --info-foreground: 210 40% 98%;
+
+  --success: 142 72% 35%;
+  --success-foreground: 210 40% 98%;
+
+  --warning: 38 92% 50%;
+  --warning-foreground: 222 47% 11%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 40% 98%;
+
+  /* Borders, inputs, ring */
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 242 83% 60%;
+
+  /* Overlay / card */
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  /* Radius scale */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* Dark theme overrides */
+.dark {
+  --background: 222 47% 8%;
+  --foreground: 210 40% 96%;
+
+  --muted: 222 47% 14%;
+  --muted-foreground: 215 20% 65%;
+
+  --card: 222 47% 10%;
+  --card-foreground: 210 40% 96%;
+
+  --border: 217 33% 20%;
+  --input: 217 33% 20%;
+
+  --primary: 242 100% 77%;         /* lighter indigo for dark */
+  --primary-foreground: 222 47% 10%;
+
+  --secondary: 200 95% 50%;
+  --secondary-foreground: 222 47% 10%;
+
+  --accent: 260 78% 70%;
+  --accent-foreground: 222 47% 10%;
+
+  --info: 217 91% 70%;
+  --success: 142 72% 45%;
+  --warning: 38 92% 60%;
+  --destructive: 0 84% 67%;
+}
+``
+

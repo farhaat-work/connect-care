@@ -1,0 +1,38 @@
+export const reports = [
+  {
+    reportId: "RPT-1045",
+    period: "May 2025",
+    recoveryRate: 84,
+    readmissionRate: 9,
+    inPatients: 310,
+    outPatients: 890,
+    generatedDate: "2025-05-31",
+  },
+  {
+    reportId: "RPT-1044",
+    period: "April 2025",
+    recoveryRate: 82,
+    readmissionRate: 11,
+    inPatients: 320,
+    outPatients: 880,
+    generatedDate: "2025-04-30",
+  },
+  {
+    reportId: "RPT-1043",
+    period: "March 2025",
+    recoveryRate: 80,
+    readmissionRate: 12,
+    inPatients: 340,
+    outPatients: 860,
+    generatedDate: "2025-03-31",
+  },
+  {
+    reportId: "RPT-1042",
+    period: "February 2025",
+    recoveryRate: 78,
+    readmissionRate: 13,
+    inPatients: 360,
+    outPatients: 840,
+    generatedDate: "2025-02-28",
+  },
+];

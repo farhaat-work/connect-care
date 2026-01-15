@@ -1,0 +1,379 @@
+
+:root {
+  --primary: #149e90;       /* hospital blue */
+  --secondary: #90e0ef;     /* calming aqua */
+  --background: #f0fdfc;    /* very light teal */
+  --card: #ffffff;
+  --text: #1a1a1a;
+  --muted: #6c757d;
+  --error: #d62828;
+  --success: #2a9d8f;
+}
+
+
+body {
+  margin: 0;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  background: var(--background);
+  color: var(--text);
+}
+
+/* The container centers the page content card */
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+/* Shared card styles */
+.form,
+.form-horizontal {
+  background: var(--card);
+  padding: 2rem;
+  border-radius: 12px;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  border-top: 6px solid var(--primary);
+}
+
+.form {
+  max-width: 450px; /* Login form */
+}
+
+.form-horizontal {
+  max-width: 700px; /* Registration form */
+}
+
+.form h2,
+.form-horizontal h2 {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* Labels & inputs */
+.form label,
+.form-horizontal label {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.form input,
+.form textarea,
+.form select,
+.form-row input,
+.form-row select,
+.form-row textarea {
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form input:focus,
+.form textarea:focus,
+.form select:focus,
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(144,224,239,0.3);
+}
+
+/* Buttons — scope primary button styles to direct children only */
+.form > button,
+.form-horizontal > button {
+  width: 100%;
+  padding: 0.9rem;
+  margin-top: 1rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  transition: background 0.2s ease-in-out;
+}
+
+.form > button:hover,
+.form-horizontal > button:hover {
+  background: #1DB1A2;
+}
+
+/* Links */
+.link,
+.switch-link {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.link a,
+.switch-link a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.link a:hover,
+.switch-link a:hover {
+  text-decoration: underline;
+}
+
+/* Error & success messages */
+.error {
+  color: var(--error);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.success {
+  color: var(--success);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+/* Horizontal form rows */
+.form-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.form-row label {
+  flex: 0 0 150px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0; /* override vertical margin */
+}
+
+.form-row input,
+.form-row select,
+.form-row textarea {
+  flex: 1;
+  padding: 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.form-row textarea {
+  resize: vertical;
+}
+
+.form-horizontal .error {
+  margin-left: 150px; /* align under input */
+}
+
+/* =========================================
+   Login helpers — aligned password input
+   ========================================= */
+
+/* Password field aligned exactly like the username field */
+.password-wrapper {
+  position: relative;         /* allows the toggle button to sit inside the input */
+  display: block;             /* same block flow as regular inputs */
+  margin-top: 0.25rem;        /* matches label->input spacing */
+}
+
+/* Make the password input exactly like other inputs */
+.password-wrapper input {
+  width: 100%;
+  padding: 0.85rem;
+  padding-right: 3rem;        /* make room for the toggle button on the right */
+  border: 1px solid #dcdcdc;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;     /* ensure width includes padding */
+}
+
+/* Focus state same as other inputs */
+.password-wrapper input:focus {
+  border-color: var(--secondary);
+  box-shadow: 0 0 0 3px rgba(144,224,239,0.3);
+}
+
+/* Toggle button sits inside the input on the right */
+.toggle-btn {
+  position: absolute;
+  top: 50%;
+  right: 0.6rem;
+  transform: translateY(-50%);
+  padding: 0.35rem 0.55rem;   /* compact inside input */
+  border: none;
+  border-radius: 6px;
+  background: transparent;    /* avoid visual weight */
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1;
+  width: auto;
+  display: inline-block;
+}
+
+/* Optional hover/focus for the toggle */
+.toggle-btn:hover,
+.toggle-btn:focus-visible {
+  color: var(--text);
+  background: rgba(0,0,0,0.05);
+  outline: none;
+}
+
+/* Role options */
+.role-options {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.role-options label {
+  font-weight: 500;
+}
+
+/* ========================
+   Sticky Medi-Connect header
+   ======================== */
+.mc-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background:#1DB1A2 ;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.mc-header__wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mc-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #fff;
+}
+
+.mc-header__logo {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: white; /* --secondary tint */
+  color: #1DB1A2;
+  font-size: 22px;
+  box-shadow: inset 0 0 8px rgba(144,224,239,0.35);
+}
+
+.mc-header__title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.mc-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mc-header__link {
+  color: #eaf7fb;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 8px 10px;
+  border-radius: 8px;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.mc-header__link:hover,
+.mc-header__link:focus-visible {
+  color: #ffffff;
+  background: rgba(234, 247, 251, 0.16);
+  outline: none;
+}
+.dashboard-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background: #1e293b;
+  color: white;
+  padding: 20px;
+}
+
+.dashboard-main {
+  flex: 1;
+  background: #f8fafc;
+  padding: 20px;
+}
+
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.dashboard-card {
+  background: white;
+  padding: 15px;
+  margin: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+
+/* Responsive tweaks */
+@media (max-width: 480px) {
+  .form,
+  .form-horizontal {
+    padding: 1.25rem;
+    border-radius: 10px;
+  }
+
+  .form h2,
+  .form-horizontal h2 {
+    font-size: 1.3rem;
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .form-row label {
+    margin-bottom: 0.4rem;
+  }
+
+  .form-horizontal .error {
+    margin-left: 0;
+  }
+
+  .mc-header__wrap {
+    padding: 10px 14px;
+  }
+
+  .mc-header__title {
+    font-size: 1.2rem;
+  }
+
+  .mc-header__nav {
+    gap: 8px;
+  }
+}
