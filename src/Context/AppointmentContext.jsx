@@ -40,7 +40,6 @@ export const AppointmentProvider = ({ children }) => {
       appointmentDate: appointmentData.appointmentDate,
       appointmentTime: appointmentData.appointmentTime,
       consultationMode: appointmentData.consultationType === "virtual" ? "Virtual" : "In-Person",
-      reasonForVisit: appointmentData.reasonForVisit,
       status: "Upcoming",
       createdAt: new Date().toISOString(),
     };

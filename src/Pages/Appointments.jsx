@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock, User, Stethoscope, Video, Building2, Phone, Mail, Users } from "lucide-react";
 import { useAppointments } from "../context/AppointmentContext";
+import appointmentData from "../data/appointmentData.json";
 
 const Appointments = () => {
   const navigate = useNavigate();
@@ -17,41 +18,13 @@ const Appointments = () => {
     appointmentDate: "",
     appointmentTime: "",
     consultationType: "virtual",
-    reasonForVisit: "",
   });
 
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
 
-  const specializations = [
-    "General Physician",
-    "Cardiologist",
-    "Dermatologist",
-    "Orthopedic",
-  ];
-
-  const doctorsBySpecialization = {
-    "General Physician": [
-      "Dr. Sarah Johnson",
-      "Dr. Amit Sharma",
-      "Dr. Priya Patel",
-    ],
-    "Cardiologist": [
-      "Dr. Michael Chen",
-      "Dr. Rajesh Kumar",
-      "Dr. Anita Gupta",
-    ],
-    "Dermatologist": [
-      "Dr. Emily Davis",
-      "Dr. Neha Verma",
-      "Dr. Suresh Reddy",
-    ],
-    "Orthopedic": [
-      "Dr. Robert Wilson",
-      "Dr. Vikram Singh",
-      "Dr. Meera Nair",
-    ],
-  };
+  // Import data from JSON file
+  const { specializations, doctorsBySpecialization, availableTimeSlots } = appointmentData;
 
   const availableDoctors = formData.doctorSpecialization
     ? doctorsBySpecialization[formData.doctorSpecialization] || []
@@ -95,11 +68,7 @@ const Appointments = () => {
     }
 
     if (!formData.appointmentTime) {
-      newErrors.appointmentTime = "Appointment time is required";
-    }
-
-    if (!formData.reasonForVisit.trim()) {
-      newErrors.reasonForVisit = "Reason for visit is required";
+      newErrors.appointmentTime = "Please select a time slot";
     }
 
     setErrors(newErrors);
@@ -156,7 +125,6 @@ const Appointments = () => {
         appointmentDate: "",
         appointmentTime: "",
         consultationType: "virtual",
-        reasonForVisit: "",
       });
       setErrors({});
       navigate("/appointments/view");
@@ -401,19 +369,25 @@ const Appointments = () => {
                     )}
                   </div>
 
-                  {/* Appointment Time */}
+                  {/* Appointment Time Slot */}
                   <div>
                     <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                       <Clock size={14} className="text-gray-400" />
-                      Appointment Time <span className="text-red-500">*</span>
+                      Available Time Slot <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="time"
+                    <select
                       name="appointmentTime"
                       value={formData.appointmentTime}
                       onChange={handleChange}
-                      className={`${inputBaseClass} ${errors.appointmentTime ? inputErrorClass : inputNormalClass}`}
-                    />
+                      className={`${inputBaseClass} bg-white ${errors.appointmentTime ? inputErrorClass : inputNormalClass}`}
+                    >
+                      <option value="">Select Time Slot</option>
+                      {availableTimeSlots.map((slot) => (
+                        <option key={slot.id} value={slot.value}>
+                          {slot.label}
+                        </option>
+                      ))}
+                    </select>
                     {errors.appointmentTime && (
                       <p className="mt-1 text-sm text-red-500">{errors.appointmentTime}</p>
                     )}
@@ -524,24 +498,6 @@ const Appointments = () => {
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Reason for Visit */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Reason for Visit <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    name="reasonForVisit"
-                    value={formData.reasonForVisit}
-                    onChange={handleChange}
-                    placeholder="Briefly describe your symptoms or reason for consultation..."
-                    rows={4}
-                    className={`${inputBaseClass} resize-none ${errors.reasonForVisit ? inputErrorClass : inputNormalClass}`}
-                  />
-                  {errors.reasonForVisit && (
-                    <p className="mt-1 text-sm text-red-500">{errors.reasonForVisit}</p>
                   )}
                 </div>
               </div>
