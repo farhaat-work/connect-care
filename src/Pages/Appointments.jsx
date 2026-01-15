@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Calendar, Clock, User, Stethoscope, Video, Building2, Phone, Mail, Users } from "lucide-react";
-import { useAppointments } from "../context/AppointmentContext";
+import { useAppointments } from "../Context/AppointmentContext";
 import appointmentData from "../data/appointmentData.json";
 
 const Appointments = () => {

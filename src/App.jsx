@@ -11,7 +11,7 @@ import { m3Routes } from "../modules/m3/routes";
 
 import { Module4Provider } from "../modules/m4/module-2.4-ehealth-ui/src/m4context/context";
 import { RoleProvider } from "../src/Context/RoleContext";
-import { AppointmentProvider } from "./context/AppointmentContext";
+import { AppointmentProvider } from "./Context/AppointmentContext";
 
 import DoctorDashboard from "./Components/Dashboards/DoctorDashboard";
 import PatientDashboard from "./Components/Dashboards/PatientDashboard";
